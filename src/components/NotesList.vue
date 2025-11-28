@@ -67,13 +67,34 @@ const syncStatusText = computed(() => {
 })
 
 function getPreview(note) {
+  // New block-based format
+  if (note.blocks && Array.isArray(note.blocks) && note.blocks.length > 0) {
+    for (const block of note.blocks) {
+      if (block.type === 'text' && block.content) {
+        return block.content.slice(0, 100) + (block.content.length > 100 ? '...' : '')
+      }
+      if (block.type === 'heading' && block.content) {
+        return block.content.slice(0, 100) + (block.content.length > 100 ? '...' : '')
+      }
+      if (block.type === 'checklist' && block.items && block.items.length > 0) {
+        const uncheckedCount = block.items.filter(item => !item.checked).length
+        const totalCount = block.items.length
+        return `${uncheckedCount} of ${totalCount} items${uncheckedCount === 0 ? ' - All done!' : ''}`
+      }
+    }
+  }
+
+  // Legacy format support
   if (note.checklist && note.checklist.length > 0) {
     const uncheckedCount = note.checklist.filter(item => !item.checked).length
     const totalCount = note.checklist.length
     return `${uncheckedCount} of ${totalCount} items${uncheckedCount === 0 ? ' - All done!' : ''}`
   }
-  if (!note.content) return 'No content'
-  return note.content.slice(0, 100) + (note.content.length > 100 ? '...' : '')
+  if (note.content) {
+    return note.content.slice(0, 100) + (note.content.length > 100 ? '...' : '')
+  }
+
+  return 'No content'
 }
 
 function formatDate(timestamp) {
@@ -94,7 +115,7 @@ function formatDate(timestamp) {
 }
 
 async function createNewNote() {
-  const id = await createNote('Untitled', '')
+  const id = await createNote('Untitled', [])
   if (id) {
     router.push(`/note/${id}`)
   }

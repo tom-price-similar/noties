@@ -5,15 +5,17 @@ const isDev = process.env.NODE_ENV !== 'production'
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 400,
+    width: 600,
     height: 700,
-    minWidth: 320,
+    minWidth: 400,
     minHeight: 500,
     titleBarStyle: 'hiddenInset',
+    trafficLightPosition: { x: 12, y: 12 },
     backgroundColor: '#1a1a1a',
     webPreferences: {
       nodeIntegration: false,
-      contextIsolation: true
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js')
     }
   })
 

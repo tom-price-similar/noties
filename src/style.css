@@ -150,8 +150,28 @@ button {
   .header {
     padding: 10px 12px;
   }
-  
+
   .header h1 {
     font-size: 18px;
   }
+}
+
+/* Electron-specific styles */
+.electron-app {
+  height: 100%;
+}
+
+.electron-app .header {
+  -webkit-app-region: drag;
+  padding-left: 80px; /* Space for traffic lights */
+}
+
+.electron-app .header button,
+.electron-app .header input,
+.electron-app .header a {
+  -webkit-app-region: no-drag;
+}
+
+.electron-app .header h1 {
+  -webkit-app-region: drag;
 }

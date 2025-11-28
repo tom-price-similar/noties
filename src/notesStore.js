@@ -1,10 +1,10 @@
 import { ref, computed } from 'vue'
-import { 
-  collection, 
-  doc, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
+import {
+  collection,
+  doc,
+  addDoc,
+  updateDoc,
+  deleteDoc,
   onSnapshot,
   query,
   orderBy,
@@ -17,7 +17,60 @@ const isLoading = ref(true)
 const syncStatus = ref('synced')
 
 let unsubscribe = null
-let currentPin = null
+// Default collection name (no PIN required)
+const DEFAULT_COLLECTION = 'default'
+let currentPin = DEFAULT_COLLECTION
+
+// Migrate old note format to new block-based format
+export function migrateNote(note) {
+  // Already has blocks array - no migration needed
+  if (note.blocks && Array.isArray(note.blocks)) {
+    return note
+  }
+
+  const blocks = []
+
+  // Migrate old content string to text block
+  if (note.content && typeof note.content === 'string' && note.content.trim()) {
+    blocks.push({
+      id: `text-${Date.now()}`,
+      type: 'text',
+      content: note.content
+    })
+  }
+
+  // Migrate old checklist array to checklist block
+  if (note.checklist && Array.isArray(note.checklist) && note.checklist.length > 0) {
+    blocks.push({
+      id: `checklist-${Date.now()}`,
+      type: 'checklist',
+      items: note.checklist.map(item => ({
+        id: item.id || `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        text: item.text || '',
+        checked: item.checked || false,
+        priority: item.priority || 'none'
+      }))
+    })
+  }
+
+  return {
+    ...note,
+    blocks,
+    // Keep old fields for backward compatibility during transition
+    content: note.content || '',
+    checklist: note.checklist || []
+  }
+}
+
+// Generate unique block ID
+export function generateBlockId() {
+  return `block-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+}
+
+// Generate unique item ID
+export function generateItemId() {
+  return `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+}
 
 export function useNotes() {
   const sortedNotes = computed(() => {
@@ -81,7 +134,7 @@ export function unsubscribeFromNotes() {
   }
 }
 
-export async function createNote(title, content = '', checklist = []) {
+export async function createNote(title, blocks = []) {
   const notesCol = getNotesCollection()
   if (!notesCol) return null
 
@@ -90,8 +143,7 @@ export async function createNote(title, content = '', checklist = []) {
   try {
     const docRef = await addDoc(notesCol, {
       title,
-      content,
-      checklist,
+      blocks,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     })

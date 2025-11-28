@@ -39,7 +39,8 @@
 ├── .github/workflows/
 │   └── deploy.yml              # GitHub Actions for automatic deployment
 ├── electron/
-│   └── main.js                 # Electron main process
+│   ├── main.js                 # Electron main process
+│   └── preload.js              # Preload script for Electron API exposure
 ├── public/                     # Static assets
 │   ├── favicon.ico
 │   ├── apple-touch-icon.png
@@ -47,12 +48,17 @@
 ├── src/
 │   ├── components/
 │   │   ├── PinScreen.vue      # PIN authentication
-│   │   ├── NotesList.vue      # Notes list with sync status
-│   │   └── NoteEditor.vue     # Note editing interface
-│   ├── App.vue                # Root component
+│   │   ├── NotesList.vue      # Notes list (PWA only)
+│   │   ├── NoteEditor.vue     # Block-based WYSIWYG editor
+│   │   ├── SlashMenu.vue      # Slash command menu for block insertion
+│   │   ├── Sidebar.vue        # Desktop sidebar with note list
+│   │   ├── DesktopLayout.vue  # Desktop two-panel layout
+│   │   ├── TabBar.vue         # Bottom tab navigation (PWA only)
+│   │   └── DayPlanner.vue     # Day planner component
+│   ├── App.vue                # Root component with platform detection
 │   ├── main.js                # Vue app entry point
 │   ├── firebase.js            # Firebase configuration
-│   ├── notesStore.js          # Central state management
+│   ├── notesStore.js          # Central state management with migration
 │   ├── offlineSync.js         # Offline synchronization logic
 │   └── style.css              # Global styles
 ├── dist/                      # PWA build output
@@ -118,9 +124,12 @@ pins/
       ├── notes/
       │   └── {noteId}
       │       ├── title
-      │       ├── content
-      │       ├── checklist: [
-      │       │   { id, text, checked, priority, createdAt }
+      │       ├── blocks: [                    # New block-based format
+      │       │   { id, type: 'text', content },
+      │       │   { id, type: 'heading', level: 1|2|3, content },
+      │       │   { id, type: 'checklist', items: [
+      │       │       { id, text, checked, priority: 'high'|'medium'|'low'|'none' }
+      │       │   ]}
       │       │ ]
       │       ├── createdAt
       │       └── updatedAt
@@ -134,6 +143,8 @@ pins/
               │ }
               └── updatedAt
 ```
+
+**Note**: Legacy notes with `content` string or `checklist` array are automatically migrated to the new block format on load.
 
 **Note**: Firebase API keys are exposed in client code (standard for Firebase web apps). Ensure proper Firestore security rules are configured.
 
@@ -169,14 +180,12 @@ pins/
 - Single PIN = single note collection
 - No collaborative editing support
 - Day planner data resets daily (no history)
-- Cannot mix text and checklist in same note (either/or mode)
 - No export functionality for notes or checklists
 
 ## Future Enhancement Ideas
 
 - User authentication with email/OAuth
 - Note sharing and collaboration
-- Mixed content notes (text + checklist in same note)
 - Note categories/tags
 - Search functionality across all notes
 - Export options (PDF, Markdown, JSON)
@@ -207,23 +216,45 @@ pins/
 
 ## Recent Updates
 
+### 2025-11-28 - Block-Based Editor & Desktop Sidebar
+- **Block-Based Note Editor**:
+  - Notes now support mixed content with text, headings, and checklists
+  - WYSIWYG editing with inline markdown rendering
+  - Slash commands (`/`) to insert blocks: Red/Yellow/Green checklists, H1/H2/H3 headings
+  - Priority colors: Red = High/Urgent, Yellow = Medium, Green = Low
+
+- **Desktop Electron Improvements**:
+  - 150px sidebar with note titles (auto-selects latest note)
+  - Fixed window draggable region and traffic light overlap
+  - Two-panel layout for desktop (sidebar + editor)
+
+- **Removed Features**:
+  - Checklist toggle button (replaced by slash commands)
+  - Markdown preview section (now inline WYSIWYG)
+  - PriorityPicker component (priority set on checklist creation)
+
+- **Technical Changes**:
+  - New block-based data structure with automatic migration from legacy format
+  - Added: SlashMenu, Sidebar, DesktopLayout components
+  - Added: electron/preload.js for Electron API exposure
+  - Removed: ChecklistItem, PriorityPicker components
+
 ### 2024-11-28 - Major Feature Release
 - **Initial deployment to GitHub Pages**
   - Configured GitHub Actions for automatic deployment
   - Set up PWA hosting at https://tom-price-similar.github.io/noties/
 
 - **New Features Implemented**:
-  - ✅ **Tab Navigation**: Bottom tab bar for Notes and Day Planner sections
-  - ✅ **Day Planner**: Daily planning with 30-minute time slots (6AM-10PM)
-  - ✅ **Checklists**: Todo lists within notes with checkbox items
-  - ✅ **Priority System**: Color-coded priorities (High/Medium/Low) for checklist items
-  - ✅ **Markdown Support**: H1-H3, bold, italic, strikethrough with live preview
-  - ✅ **Clickable Links**: Auto-detect URLs and markdown link syntax
-  - ✅ **Offline Sync**: All features work offline with queue-based synchronization
+  - Tab Navigation: Bottom tab bar for Notes and Day Planner sections
+  - Day Planner: Daily planning with 30-minute time slots (6AM-10PM)
+  - Checklists: Todo lists within notes with checkbox items
+  - Markdown Support: H1-H3, bold, italic, strikethrough
+  - Clickable Links: Auto-detect URLs and markdown link syntax
+  - Offline Sync: All features work offline with queue-based synchronization
 
 - **Technical Improvements**:
   - Added `marked` and `dompurify` for secure markdown rendering
-  - Created modular components: TabBar, DayPlanner, ChecklistItem, PriorityPicker
+  - Created modular components: TabBar, DayPlanner
   - Implemented plannerStore for day planner state management
   - Enhanced routing with tab-based navigation
 

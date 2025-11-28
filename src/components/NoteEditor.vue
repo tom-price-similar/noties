@@ -1,18 +1,9 @@
 <template>
-  <div class="container">
+  <div class="container" @keydown="handleGlobalKeydown">
     <header class="header">
-      <button class="header-btn" @click="goBack">← Back</button>
+      <button v-if="!isDesktop" class="header-btn" @click="goBack">← Back</button>
+      <div v-else class="header-spacer"></div>
       <div class="header-actions">
-        <button
-          class="header-btn mode-toggle"
-          @click="toggleMode"
-          :class="{ active: mode === 'checklist' }"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M9 11l3 3L22 4"></path>
-            <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"></path>
-          </svg>
-        </button>
         <button class="header-btn danger" @click="confirmDelete" v-if="noteId">Delete</button>
       </div>
     </header>
@@ -26,54 +17,98 @@
         @input="debouncedSave"
       />
 
-      <!-- Text/Markdown Mode -->
-      <div v-if="mode === 'text'" class="text-editor">
-        <div class="formatting-toolbar">
-          <button @click="insertMarkdown('# ', '')" title="Heading 1">H1</button>
-          <button @click="insertMarkdown('## ', '')" title="Heading 2">H2</button>
-          <button @click="insertMarkdown('### ', '')" title="Heading 3">H3</button>
-          <div class="toolbar-separator"></div>
-          <button @click="insertMarkdown('**', '**')" title="Bold">B</button>
-          <button @click="insertMarkdown('*', '*')" title="Italic">I</button>
-          <button @click="insertMarkdown('~~', '~~')" title="Strikethrough">S</button>
-        </div>
-
-        <textarea
-          ref="contentInput"
-          v-model="content"
-          class="content-input"
-          placeholder="Start writing... (Markdown supported)"
-          @input="debouncedSave"
-        ></textarea>
-
-        <div v-if="content" class="markdown-preview">
-          <h4 class="preview-label">Preview</h4>
-          <div v-html="renderedMarkdown" class="markdown-content"></div>
-        </div>
-      </div>
-
-      <!-- Checklist Mode -->
-      <div v-else-if="mode === 'checklist'" class="checklist-editor">
-        <div class="checklist-items">
-          <ChecklistItem
-            v-for="(item, index) in checklist"
-            :key="item.id"
-            :item="item"
-            :index="index"
-            @update="updateChecklistItem"
-            @add="addChecklistItem"
-            @remove="removeChecklistItem"
-            @check="toggleChecklistItem"
-          />
-        </div>
-        <button
-          v-if="checklist.length === 0"
-          @click="addChecklistItem(-1)"
-          class="add-first-item"
+      <div class="blocks-container" ref="blocksContainer">
+        <div
+          v-for="(block, index) in blocks"
+          :key="block.id"
+          class="block"
+          :class="[`block-${block.type}`, { 'block-selected': selectedBlocks.includes(index) }]"
+          :data-block-index="index"
+          @click="handleBlockClick($event, index)"
         >
-          + Add first item
-        </button>
+          <!-- Text Block - use ref callback to set initial content -->
+          <div
+            v-if="block.type === 'text'"
+            class="text-block"
+            contenteditable="true"
+            :data-block-id="block.id"
+            :data-block-index="index"
+            :ref="el => setBlockContent(el, block)"
+            @input="handleTextInput($event, index)"
+            @keydown="handleTextKeydown($event, index)"
+            @paste="handlePaste($event, index)"
+            @focus="clearBlockSelection"
+            :placeholder="index === 0 && blocks.length === 1 ? 'Start writing... (type / for commands)' : ''"
+          ></div>
+
+          <!-- Heading Block -->
+          <div
+            v-else-if="block.type === 'heading'"
+            class="heading-block"
+            :class="`heading-${block.level}`"
+            contenteditable="true"
+            :data-block-id="block.id"
+            :data-block-index="index"
+            :ref="el => setBlockContent(el, block)"
+            @input="handleHeadingInput($event, index)"
+            @keydown="handleHeadingKeydown($event, index)"
+            @paste="handlePaste($event, index)"
+            @focus="clearBlockSelection"
+          ></div>
+
+          <!-- Checklist Block -->
+          <div v-else-if="block.type === 'checklist'" class="checklist-block">
+            <div
+              v-for="(item, itemIndex) in block.items"
+              :key="item.id"
+              class="checklist-item"
+              :class="{ checked: item.checked, [`indent-${item.indent || 0}`]: true }"
+              :style="{ paddingLeft: (item.indent || 0) * 24 + 'px' }"
+            >
+              <button
+                class="checkbox"
+                :class="`priority-${item.priority}`"
+                @click="toggleChecklistItem(index, itemIndex)"
+              >
+                <svg v-if="item.checked" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+              </button>
+              <input
+                type="text"
+                class="checklist-input"
+                :class="{ 'strike-through': item.checked }"
+                :value="item.text"
+                :data-block-index="index"
+                :data-item-index="itemIndex"
+                @input="updateChecklistItemText(index, itemIndex, $event.target.value)"
+                @keydown="handleChecklistKeydown($event, index, itemIndex)"
+                @focus="clearBlockSelection"
+                placeholder="Add item..."
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- Empty state / new block area -->
+        <div
+          v-if="blocks.length === 0"
+          class="text-block empty-block"
+          contenteditable="true"
+          @input="handleEmptyBlockInput"
+          @keydown="handleEmptyBlockKeydown"
+          placeholder="Start writing... (type / for commands)"
+        ></div>
       </div>
+
+      <!-- Slash Menu -->
+      <SlashMenu
+        v-if="showSlashMenu"
+        :position="slashMenuPosition"
+        :filter="slashFilter"
+        @select="handleSlashSelect"
+        @close="closeSlashMenu"
+      />
     </main>
 
     <footer class="sync-indicator">
@@ -101,44 +136,55 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, inject } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { useNotes, getNoteById, updateNote, deleteNote } from '../notesStore'
-import ChecklistItem from './ChecklistItem.vue'
-import { marked } from 'marked'
-import DOMPurify from 'dompurify'
+import { useNotes, getNoteById, updateNote, deleteNote, migrateNote, generateBlockId, generateItemId } from '../notesStore'
+import SlashMenu from './SlashMenu.vue'
 
 const router = useRouter()
 const route = useRoute()
 const { syncStatus } = useNotes()
 
+// Check if running in desktop mode (injected from parent)
+const isDesktop = inject('isDesktop', ref(false))
+
 const noteId = computed(() => route.params.id)
 const title = ref('')
-const content = ref('')
-const checklist = ref([])
-const mode = ref('text')
+const blocks = ref([])
 const isSaving = ref(false)
 const showDeleteModal = ref(false)
 const titleInput = ref(null)
-const contentInput = ref(null)
+const blocksContainer = ref(null)
+
+// Block selection state
+const selectedBlocks = ref([])
+
+// Slash menu state
+const showSlashMenu = ref(false)
+const slashMenuPosition = ref({ x: 0, y: 0 })
+const slashFilter = ref('')
+const slashBlockIndex = ref(-1)
+const slashStartOffset = ref(0)
+
+// Track last empty Enter for double-enter detection
+const lastEmptyEnterTime = ref(0)
+const lastEmptyEnterBlockIndex = ref(-1)
 
 let saveTimeout = null
 
-// Configure marked for security
-marked.setOptions({
-  breaks: true,
-  gfm: true,
-  headerIds: false,
-  mangle: false
-})
+// Track which blocks have been initialized to prevent re-setting content
+const initializedBlocks = new Set()
 
-// Configure DOMPurify to handle links
-DOMPurify.addHook('afterSanitizeAttributes', function (node) {
-  if ('target' in node) {
-    node.setAttribute('target', '_blank')
-    node.setAttribute('rel', 'noopener noreferrer')
+// Set block content only once when element is created
+function setBlockContent(el, block) {
+  if (!el || initializedBlocks.has(block.id)) return
+
+  // Only set content if element is empty or different
+  if (el.innerText !== (block.content || '')) {
+    el.innerText = block.content || ''
   }
-})
+  initializedBlocks.add(block.id)
+}
 
 const statusText = computed(() => {
   if (isSaving.value) return 'Saving...'
@@ -147,54 +193,13 @@ const statusText = computed(() => {
   return 'Saved'
 })
 
-const renderedMarkdown = computed(() => {
-  if (!content.value) return ''
-
-  // Parse markdown
-  let html = marked.parse(content.value)
-
-  // Auto-link URLs
-  html = html.replace(
-    /(https?:\/\/[^\s<]+)/g,
-    '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
-  )
-
-  // Sanitize HTML
-  return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: ['h1', 'h2', 'h3', 'p', 'strong', 'em', 'del', 'a', 'br', 'ul', 'ol', 'li', 'blockquote', 'code', 'pre'],
-    ALLOWED_ATTR: ['href', 'target', 'rel']
-  })
-})
-
-const sortedChecklist = computed(() => {
-  const unchecked = checklist.value.filter(item => !item.checked)
-  const checked = checklist.value.filter(item => item.checked)
-
-  // Sort by priority within unchecked items
-  const priorityOrder = { high: 0, medium: 1, low: 2, none: 3 }
-  unchecked.sort((a, b) => {
-    const aPriority = priorityOrder[a.priority] ?? 3
-    const bPriority = priorityOrder[b.priority] ?? 3
-    return aPriority - bPriority
-  })
-
-  return [...unchecked, ...checked]
-})
-
 onMounted(() => {
   if (noteId.value) {
     const note = getNoteById(noteId.value)
     if (note) {
-      title.value = note.title || ''
-      content.value = note.content || ''
-      checklist.value = note.checklist || []
-
-      // Determine mode based on content
-      if (note.checklist && note.checklist.length > 0) {
-        mode.value = 'checklist'
-      } else {
-        mode.value = 'text'
-      }
+      const migratedNote = migrateNote(note)
+      title.value = migratedNote.title || ''
+      blocks.value = migratedNote.blocks || []
     }
   } else {
     titleInput.value?.focus()
@@ -205,81 +210,522 @@ onUnmounted(() => {
   if (saveTimeout) clearTimeout(saveTimeout)
 })
 
-function toggleMode() {
-  mode.value = mode.value === 'text' ? 'checklist' : 'text'
-
-  // Initialize empty checklist if switching to checklist mode
-  if (mode.value === 'checklist' && checklist.value.length === 0) {
-    addChecklistItem(-1)
+// Handle global keydown for multi-block operations
+function handleGlobalKeydown(event) {
+  // Delete selected blocks
+  if ((event.key === 'Delete' || event.key === 'Backspace') && selectedBlocks.value.length > 0) {
+    event.preventDefault()
+    deleteSelectedBlocks()
+    return
   }
 
-  debouncedSave()
+  // Select all with Cmd/Ctrl+A when no text input is focused
+  if ((event.metaKey || event.ctrlKey) && event.key === 'a') {
+    const activeElement = document.activeElement
+    const isInEditor = activeElement?.closest('.blocks-container')
+
+    if (isInEditor) {
+      // If there's a text selection, let normal behavior happen first time
+      const selection = window.getSelection()
+      if (selection.toString().length === 0 || selectedBlocks.value.length > 0) {
+        event.preventDefault()
+        selectAllBlocks()
+      }
+    }
+  }
 }
 
-function insertMarkdown(before, after) {
-  const textarea = contentInput.value
-  if (!textarea) return
+function handleBlockClick(event, index) {
+  if (event.shiftKey && selectedBlocks.value.length > 0) {
+    // Shift+click to extend selection
+    const lastSelected = selectedBlocks.value[selectedBlocks.value.length - 1]
+    const start = Math.min(lastSelected, index)
+    const end = Math.max(lastSelected, index)
+    selectedBlocks.value = Array.from({ length: end - start + 1 }, (_, i) => start + i)
+  } else if (event.metaKey || event.ctrlKey) {
+    // Cmd/Ctrl+click to toggle selection
+    const idx = selectedBlocks.value.indexOf(index)
+    if (idx > -1) {
+      selectedBlocks.value.splice(idx, 1)
+    } else {
+      selectedBlocks.value.push(index)
+    }
+  }
+}
 
-  const start = textarea.selectionStart
-  const end = textarea.selectionEnd
-  const selectedText = content.value.substring(start, end)
+function clearBlockSelection() {
+  selectedBlocks.value = []
+}
 
-  const newText = content.value.substring(0, start) +
-    before + selectedText + after +
-    content.value.substring(end)
+function selectAllBlocks() {
+  selectedBlocks.value = blocks.value.map((_, i) => i)
+}
 
-  content.value = newText
+function deleteSelectedBlocks() {
+  if (selectedBlocks.value.length === 0) return
 
-  // Set cursor position
+  // Sort in descending order to delete from end first
+  const toDelete = [...selectedBlocks.value].sort((a, b) => b - a)
+
+  for (const index of toDelete) {
+    blocks.value.splice(index, 1)
+  }
+
+  // If all blocks deleted, create empty text block
+  if (blocks.value.length === 0) {
+    blocks.value.push({
+      id: generateBlockId(),
+      type: 'text',
+      content: ''
+    })
+  }
+
+  selectedBlocks.value = []
+  debouncedSave()
+
   nextTick(() => {
-    const newCursorPos = start + before.length + selectedText.length
-    textarea.setSelectionRange(newCursorPos, newCursorPos)
-    textarea.focus()
+    focusBlock(0)
   })
+}
 
+function handleTextInput(event, index) {
+  const text = event.target.innerText
+  blocks.value[index].content = text
+  debouncedSave()
+
+  // Check for slash command
+  checkForSlashCommand(event.target, index)
+}
+
+function handleHeadingInput(event, index) {
+  blocks.value[index].content = event.target.innerText
   debouncedSave()
 }
 
-function addChecklistItem(afterIndex) {
-  const newItem = {
-    id: Date.now().toString(),
-    text: '',
-    checked: false,
-    priority: 'none',
-    createdAt: new Date()
+function handleTextKeydown(event, index) {
+  const target = event.target
+  const text = target.innerText
+
+  if (event.key === 'Enter' && !event.shiftKey) {
+    // If slash menu is open, let it handle Enter
+    if (showSlashMenu.value) return
+
+    event.preventDefault()
+    // Create new text block after current one
+    const newBlock = { id: generateBlockId(), type: 'text', content: '' }
+    blocks.value.splice(index + 1, 0, newBlock)
+    debouncedSave()
+
+    nextTick(() => {
+      focusBlock(index + 1)
+    })
+  } else if (event.key === 'Backspace' && text === '' && blocks.value.length > 1) {
+    event.preventDefault()
+    blocks.value.splice(index, 1)
+    debouncedSave()
+
+    nextTick(() => {
+      focusBlock(Math.max(0, index - 1))
+    })
+  } else if (event.key === 'Escape') {
+    if (showSlashMenu.value) {
+      closeSlashMenu()
+    }
+  }
+}
+
+function handleHeadingKeydown(event, index) {
+  if (event.key === 'Enter') {
+    event.preventDefault()
+    // Create new text block after heading
+    const newBlock = { id: generateBlockId(), type: 'text', content: '' }
+    blocks.value.splice(index + 1, 0, newBlock)
+    debouncedSave()
+
+    nextTick(() => {
+      focusBlock(index + 1)
+    })
+  } else if (event.key === 'Backspace' && event.target.innerText === '') {
+    event.preventDefault()
+    blocks.value.splice(index, 1)
+    debouncedSave()
+
+    nextTick(() => {
+      focusBlock(Math.max(0, index - 1))
+    })
+  }
+}
+
+function handleChecklistKeydown(event, blockIndex, itemIndex) {
+  const block = blocks.value[blockIndex]
+  const item = block.items[itemIndex]
+
+  if (event.key === 'Tab') {
+    event.preventDefault()
+
+    if (event.shiftKey) {
+      // Shift+Tab: Decrease indent
+      if (item.indent && item.indent > 0) {
+        item.indent = item.indent - 1
+        debouncedSave()
+      }
+    } else {
+      // Tab: Increase indent (max 3 levels)
+      const maxIndent = 3
+      const currentIndent = item.indent || 0
+      if (currentIndent < maxIndent) {
+        item.indent = currentIndent + 1
+        debouncedSave()
+      }
+    }
+    return
   }
 
-  if (afterIndex === -1) {
-    checklist.value.push(newItem)
+  if (event.key === 'Enter') {
+    event.preventDefault()
+
+    const now = Date.now()
+    const isDoubleEnter = item.text === '' &&
+                          lastEmptyEnterBlockIndex.value === blockIndex &&
+                          now - lastEmptyEnterTime.value < 500
+
+    if (isDoubleEnter) {
+      // Double enter on empty item - exit checklist, create text block
+      // Remove the current empty item
+      block.items.splice(itemIndex, 1)
+
+      // If checklist is now empty, replace it with text block
+      if (block.items.length === 0) {
+        blocks.value[blockIndex] = {
+          id: generateBlockId(),
+          type: 'text',
+          content: ''
+        }
+        debouncedSave()
+        nextTick(() => {
+          focusBlock(blockIndex)
+        })
+      } else {
+        // Insert a text block after the checklist
+        const newBlock = { id: generateBlockId(), type: 'text', content: '' }
+        blocks.value.splice(blockIndex + 1, 0, newBlock)
+        debouncedSave()
+        nextTick(() => {
+          focusBlock(blockIndex + 1)
+        })
+      }
+
+      lastEmptyEnterTime.value = 0
+      lastEmptyEnterBlockIndex.value = -1
+      return
+    }
+
+    // Track this enter for double-enter detection
+    if (item.text === '') {
+      lastEmptyEnterTime.value = now
+      lastEmptyEnterBlockIndex.value = blockIndex
+    } else {
+      lastEmptyEnterTime.value = 0
+      lastEmptyEnterBlockIndex.value = -1
+    }
+
+    // Add new item after current one with same priority and indent
+    const newItem = {
+      id: generateItemId(),
+      text: '',
+      checked: false,
+      priority: item.priority,
+      indent: item.indent || 0
+    }
+    block.items.splice(itemIndex + 1, 0, newItem)
+    debouncedSave()
+
+    nextTick(() => {
+      focusChecklistItem(blockIndex, itemIndex + 1)
+    })
+  } else if (event.key === 'Backspace' && event.target.value === '') {
+    event.preventDefault()
+
+    // Reset double-enter tracking
+    lastEmptyEnterTime.value = 0
+    lastEmptyEnterBlockIndex.value = -1
+
+    if (block.items.length === 1) {
+      // Last item in checklist - convert to text block
+      blocks.value[blockIndex] = {
+        id: block.id,
+        type: 'text',
+        content: ''
+      }
+      debouncedSave()
+      nextTick(() => {
+        focusBlock(blockIndex)
+      })
+    } else {
+      // Remove item
+      block.items.splice(itemIndex, 1)
+      debouncedSave()
+
+      nextTick(() => {
+        focusChecklistItem(blockIndex, Math.max(0, itemIndex - 1))
+      })
+    }
   } else {
-    checklist.value.splice(afterIndex + 1, 0, newItem)
+    // Any other key resets double-enter tracking
+    if (event.key.length === 1 || event.key === 'Delete') {
+      lastEmptyEnterTime.value = 0
+      lastEmptyEnterBlockIndex.value = -1
+    }
+  }
+}
+
+function handleEmptyBlockInput(event) {
+  const text = event.target.innerText
+
+  if (text) {
+    // Create first text block
+    blocks.value.push({
+      id: generateBlockId(),
+      type: 'text',
+      content: text
+    })
+    debouncedSave()
+
+    // Clear empty block
+    event.target.innerText = ''
+
+    nextTick(() => {
+      focusBlock(0)
+    })
+  }
+}
+
+function handleEmptyBlockKeydown(event) {
+  if (event.key === '/') {
+    // Show slash menu
+    const rect = event.target.getBoundingClientRect()
+    slashMenuPosition.value = { x: rect.left, y: rect.bottom + 4 }
+    slashBlockIndex.value = -1 // -1 indicates empty state
+    slashFilter.value = ''
+    showSlashMenu.value = true
+  }
+}
+
+function handlePaste(event, index) {
+  event.preventDefault()
+  const text = event.clipboardData.getData('text/plain')
+  document.execCommand('insertText', false, text)
+}
+
+function checkForSlashCommand(target, index) {
+  const text = target.innerText
+  const selection = window.getSelection()
+
+  if (!selection.rangeCount) return
+
+  // Get cursor position
+  const range = selection.getRangeAt(0)
+  let cursorPos = 0
+
+  // Calculate cursor position in the text
+  if (range.startContainer === target) {
+    cursorPos = range.startOffset
+  } else if (range.startContainer.nodeType === Node.TEXT_NODE) {
+    // Find position within the contenteditable
+    const walker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT, null, false)
+    let node
+    let pos = 0
+    while ((node = walker.nextNode())) {
+      if (node === range.startContainer) {
+        cursorPos = pos + range.startOffset
+        break
+      }
+      pos += node.textContent.length
+    }
   }
 
-  debouncedSave()
-}
+  const beforeText = text.substring(0, cursorPos)
+  const slashIndex = beforeText.lastIndexOf('/')
 
-function updateChecklistItem(index, updatedItem) {
-  checklist.value[index] = updatedItem
-  debouncedSave()
-}
+  if (slashIndex !== -1 && (slashIndex === 0 || beforeText[slashIndex - 1] === ' ' || beforeText[slashIndex - 1] === '\n')) {
+    const filter = beforeText.substring(slashIndex + 1)
 
-function removeChecklistItem(index) {
-  checklist.value.splice(index, 1)
-  debouncedSave()
-}
+    // Position menu at cursor
+    const rect = range.getBoundingClientRect()
 
-function toggleChecklistItem(index) {
-  checklist.value[index].checked = !checklist.value[index].checked
-
-  // Animate the item moving to bottom if checked
-  if (checklist.value[index].checked) {
-    // Sort after a delay for animation
-    setTimeout(() => {
-      checklist.value = sortedChecklist.value
-    }, 300)
+    slashMenuPosition.value = { x: rect.left || target.getBoundingClientRect().left, y: (rect.bottom || target.getBoundingClientRect().bottom) + 4 }
+    slashBlockIndex.value = index
+    slashStartOffset.value = slashIndex
+    slashFilter.value = filter
+    showSlashMenu.value = true
+  } else if (showSlashMenu.value) {
+    closeSlashMenu()
   }
+}
 
+function handleSlashSelect(item) {
+  const blockIndex = slashBlockIndex.value
+
+  closeSlashMenu()
+
+  if (item.type === 'heading') {
+    const newBlock = {
+      id: generateBlockId(),
+      type: 'heading',
+      level: item.level,
+      content: ''
+    }
+
+    if (blockIndex === -1) {
+      // Empty state - just add the block
+      blocks.value.push(newBlock)
+      debouncedSave()
+      nextTick(() => {
+        focusBlock(0)
+      })
+    } else {
+      // Get current block and update its content (remove slash command)
+      const currentBlock = blocks.value[blockIndex]
+      const contentBeforeSlash = (currentBlock.content || '').substring(0, slashStartOffset.value)
+
+      if (contentBeforeSlash.trim() === '') {
+        // No content before slash - replace the block
+        // Remove old block from initialized set so new one can be set
+        initializedBlocks.delete(currentBlock.id)
+        blocks.value[blockIndex] = newBlock
+        debouncedSave()
+        nextTick(() => {
+          focusBlock(blockIndex)
+        })
+      } else {
+        // Has content before slash - keep it and insert new block after
+        // Update DOM directly to avoid re-render issues
+        const container = blocksContainer.value
+        if (container) {
+          const blockEl = container.querySelectorAll('.block')[blockIndex]
+          const editable = blockEl?.querySelector('[contenteditable="true"]')
+          if (editable) {
+            editable.innerText = contentBeforeSlash
+          }
+        }
+        currentBlock.content = contentBeforeSlash
+        blocks.value.splice(blockIndex + 1, 0, newBlock)
+        debouncedSave()
+        nextTick(() => {
+          focusBlock(blockIndex + 1)
+        })
+      }
+    }
+
+  } else if (item.type === 'checklist') {
+    const newBlock = {
+      id: generateBlockId(),
+      type: 'checklist',
+      items: [{
+        id: generateItemId(),
+        text: '',
+        checked: false,
+        priority: item.priority,
+        indent: 0
+      }]
+    }
+
+    if (blockIndex === -1) {
+      // Empty state - just add the block
+      blocks.value.push(newBlock)
+      debouncedSave()
+      nextTick(() => {
+        focusChecklistItem(0, 0)
+      })
+    } else {
+      // Get current block and update its content (remove slash command)
+      const currentBlock = blocks.value[blockIndex]
+      const contentBeforeSlash = (currentBlock.content || '').substring(0, slashStartOffset.value)
+
+      if (contentBeforeSlash.trim() === '') {
+        // No content before slash - replace the block
+        // Remove old block from initialized set
+        initializedBlocks.delete(currentBlock.id)
+        blocks.value[blockIndex] = newBlock
+        debouncedSave()
+        nextTick(() => {
+          focusChecklistItem(blockIndex, 0)
+        })
+      } else {
+        // Has content before slash - keep it and insert new block after
+        // Update DOM directly to avoid re-render issues
+        const container = blocksContainer.value
+        if (container) {
+          const blockEl = container.querySelectorAll('.block')[blockIndex]
+          const editable = blockEl?.querySelector('[contenteditable="true"]')
+          if (editable) {
+            editable.innerText = contentBeforeSlash
+          }
+        }
+        currentBlock.content = contentBeforeSlash
+        blocks.value.splice(blockIndex + 1, 0, newBlock)
+        debouncedSave()
+        nextTick(() => {
+          focusChecklistItem(blockIndex + 1, 0)
+        })
+      }
+    }
+  }
+}
+
+function closeSlashMenu() {
+  showSlashMenu.value = false
+  slashFilter.value = ''
+  slashBlockIndex.value = -1
+}
+
+function toggleChecklistItem(blockIndex, itemIndex) {
+  blocks.value[blockIndex].items[itemIndex].checked = !blocks.value[blockIndex].items[itemIndex].checked
   debouncedSave()
+}
+
+function updateChecklistItemText(blockIndex, itemIndex, text) {
+  blocks.value[blockIndex].items[itemIndex].text = text
+  debouncedSave()
+}
+
+function focusBlock(index) {
+  const container = blocksContainer.value
+  if (!container) return
+
+  nextTick(() => {
+    const allBlocks = container.querySelectorAll('.block')
+    const block = allBlocks[index]
+    if (block) {
+      const editable = block.querySelector('[contenteditable="true"]')
+      if (editable) {
+        editable.focus()
+        // Move cursor to end
+        const selection = window.getSelection()
+        const range = document.createRange()
+        range.selectNodeContents(editable)
+        range.collapse(false)
+        selection.removeAllRanges()
+        selection.addRange(range)
+      }
+    }
+  })
+}
+
+function focusChecklistItem(blockIndex, itemIndex) {
+  const container = blocksContainer.value
+  if (!container) return
+
+  nextTick(() => {
+    const allBlocks = container.querySelectorAll('.block')
+    const block = allBlocks[blockIndex]
+    if (block) {
+      const inputs = block.querySelectorAll('.checklist-input')
+      if (inputs[itemIndex]) {
+        inputs[itemIndex].focus()
+      }
+    }
+  })
 }
 
 function debouncedSave() {
@@ -293,8 +739,7 @@ async function saveNote() {
 
   await updateNote(noteId.value, {
     title: title.value,
-    content: content.value,
-    checklist: checklist.value
+    blocks: blocks.value
   })
 
   isSaving.value = false
@@ -317,6 +762,10 @@ async function handleDelete() {
 </script>
 
 <style scoped>
+.header-spacer {
+  width: 80px;
+}
+
 .editor-content {
   flex: 1;
   display: flex;
@@ -341,174 +790,173 @@ async function handleDelete() {
   color: var(--text-muted);
 }
 
-/* Text Editor */
-.text-editor {
+.blocks-container {
   flex: 1;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-}
-
-.formatting-toolbar {
-  display: flex;
   gap: 4px;
-  margin-bottom: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border-color);
 }
 
-.formatting-toolbar button {
-  padding: 6px 12px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
+.block {
+  position: relative;
+  border-radius: 4px;
+  transition: background 0.15s;
 }
 
-.formatting-toolbar button:hover {
-  background: var(--bg-tertiary);
-  transform: translateY(-1px);
+.block-selected {
+  background: rgba(255, 200, 87, 0.2);
+  outline: 2px solid var(--accent);
 }
 
-.formatting-toolbar button:active {
-  transform: translateY(0);
-}
-
-.toolbar-separator {
-  width: 1px;
-  background: var(--border-color);
-  margin: 0 4px;
-}
-
-.content-input {
-  flex: 1;
+/* Text Block */
+.text-block {
   width: 100%;
-  border: none;
-  background: transparent;
+  min-height: 24px;
   color: var(--text-primary);
   font-size: 16px;
   line-height: 1.6;
-  padding: 0;
   outline: none;
-  resize: none;
-  min-height: 200px;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  padding: 2px 4px;
 }
 
-.content-input::placeholder {
+.text-block:empty::before {
+  content: attr(placeholder);
   color: var(--text-muted);
+  pointer-events: none;
 }
 
-.markdown-preview {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border-color);
-  overflow-y: auto;
-  max-height: 40%;
-}
-
-.preview-label {
-  font-size: 12px;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-  margin-bottom: 12px;
-  letter-spacing: 0.5px;
-}
-
-.markdown-content {
+/* Heading Blocks */
+.heading-block {
+  width: 100%;
+  outline: none;
+  font-weight: 700;
   color: var(--text-primary);
-  line-height: 1.6;
+  margin: 8px 0;
+  padding: 2px 4px;
 }
 
-.markdown-content h1 {
+.heading-block:empty::before {
+  content: 'Heading';
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.heading-1 {
   font-size: 24px;
   margin: 16px 0 8px;
 }
 
-.markdown-content h2 {
+.heading-2 {
   font-size: 20px;
   margin: 14px 0 6px;
 }
 
-.markdown-content h3 {
+.heading-3 {
   font-size: 18px;
   margin: 12px 0 4px;
 }
 
-.markdown-content p {
-  margin: 8px 0;
-}
-
-.markdown-content a {
-  color: var(--accent);
-  text-decoration: none;
-  border-bottom: 1px solid transparent;
-  transition: border-color 0.2s;
-}
-
-.markdown-content a:hover {
-  border-bottom-color: var(--accent);
-}
-
-.markdown-content strong {
-  font-weight: 600;
-}
-
-.markdown-content em {
-  font-style: italic;
-}
-
-.markdown-content del {
-  text-decoration: line-through;
-  opacity: 0.6;
-}
-
-/* Checklist Editor */
-.checklist-editor {
-  flex: 1;
-  overflow-y: auto;
-  padding: 8px 0;
-}
-
-.checklist-items {
+/* Checklist Block */
+.checklist-block {
   display: flex;
   flex-direction: column;
 }
 
-.add-first-item {
-  padding: 12px 24px;
-  background: var(--bg-secondary);
-  border: 2px dashed var(--border-color);
-  border-radius: 8px;
-  color: var(--text-secondary);
-  font-size: 16px;
+.checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+  transition: opacity 0.3s ease, padding-left 0.2s ease;
+}
+
+.checklist-item.checked {
+  opacity: 0.6;
+}
+
+.checkbox {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  border-radius: 6px;
+  border: 2px solid var(--border-color);
+  background: transparent;
   cursor: pointer;
-  transition: all 0.2s;
-  margin-top: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
 }
 
-.add-first-item:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+.checkbox:hover {
+  transform: scale(1.05);
 }
 
-/* Mode Toggle */
-.mode-toggle {
-  padding: 8px !important;
-  border-radius: 8px;
+.checkbox:active {
+  transform: scale(0.95);
 }
 
-.mode-toggle.active {
-  background: var(--accent);
-  color: var(--bg-primary);
+.checkbox svg {
+  color: var(--text-primary);
 }
 
-.mode-toggle svg {
-  width: 20px;
-  height: 20px;
+/* Priority colors */
+.checkbox.priority-none {
+  border-color: var(--border-color);
+}
+
+.checkbox.priority-high {
+  border-color: var(--priority-high);
+  background: rgba(255, 107, 107, 0.1);
+}
+
+.checkbox.priority-high svg {
+  color: var(--priority-high);
+}
+
+.checkbox.priority-medium {
+  border-color: var(--priority-medium);
+  background: rgba(255, 200, 87, 0.1);
+}
+
+.checkbox.priority-medium svg {
+  color: var(--priority-medium);
+}
+
+.checkbox.priority-low {
+  border-color: var(--priority-low);
+  background: rgba(74, 222, 128, 0.1);
+}
+
+.checkbox.priority-low svg {
+  color: var(--priority-low);
+}
+
+.checklist-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 16px;
+  outline: none;
+  padding: 4px 0;
+}
+
+.checklist-input.strike-through {
+  text-decoration: line-through;
+  color: var(--text-secondary);
+}
+
+.checklist-input::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.5;
+}
+
+.empty-block {
+  min-height: 100px;
 }
 
 /* Modal */
