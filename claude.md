@@ -115,11 +115,23 @@ The app uses Firebase Firestore with the following structure:
 ```
 pins/
   └── {pin}/
-      └── notes/
-          └── {noteId}
-              ├── title
-              ├── content
-              ├── createdAt
+      ├── notes/
+      │   └── {noteId}
+      │       ├── title
+      │       ├── content
+      │       ├── checklist: [
+      │       │   { id, text, checked, priority, createdAt }
+      │       │ ]
+      │       ├── createdAt
+      │       └── updatedAt
+      └── dayplans/
+          └── {YYYY-MM-DD}
+              ├── slots: {
+              │   '06:00': string,
+              │   '06:30': string,
+              │   // ... through to
+              │   '21:30': string
+              │ }
               └── updatedAt
 ```
 
@@ -156,17 +168,25 @@ pins/
 - No user account management
 - Single PIN = single note collection
 - No collaborative editing support
+- Day planner data resets daily (no history)
+- Cannot mix text and checklist in same note (either/or mode)
+- No export functionality for notes or checklists
 
 ## Future Enhancement Ideas
 
 - User authentication with email/OAuth
 - Note sharing and collaboration
-- Rich text editing
+- Mixed content notes (text + checklist in same note)
 - Note categories/tags
-- Search functionality
-- Export options (PDF, Markdown)
+- Search functionality across all notes
+- Export options (PDF, Markdown, JSON)
+- Day planner history and analytics
+- Recurring tasks in day planner
 - End-to-end encryption
 - Multi-language support
+- Dark/Light theme toggle
+- Note templates
+- File attachments and images
 
 ## Troubleshooting
 
@@ -187,9 +207,25 @@ pins/
 
 ## Recent Updates
 
-- **2024-11-28**: Initial deployment to GitHub Pages
-- Configured GitHub Actions for automatic deployment
-- Set up PWA hosting at https://tom-price-similar.github.io/noties/
+### 2024-11-28 - Major Feature Release
+- **Initial deployment to GitHub Pages**
+  - Configured GitHub Actions for automatic deployment
+  - Set up PWA hosting at https://tom-price-similar.github.io/noties/
+
+- **New Features Implemented**:
+  - ✅ **Tab Navigation**: Bottom tab bar for Notes and Day Planner sections
+  - ✅ **Day Planner**: Daily planning with 30-minute time slots (6AM-10PM)
+  - ✅ **Checklists**: Todo lists within notes with checkbox items
+  - ✅ **Priority System**: Color-coded priorities (High/Medium/Low) for checklist items
+  - ✅ **Markdown Support**: H1-H3, bold, italic, strikethrough with live preview
+  - ✅ **Clickable Links**: Auto-detect URLs and markdown link syntax
+  - ✅ **Offline Sync**: All features work offline with queue-based synchronization
+
+- **Technical Improvements**:
+  - Added `marked` and `dompurify` for secure markdown rendering
+  - Created modular components: TabBar, DayPlanner, ChecklistItem, PriorityPicker
+  - Implemented plannerStore for day planner state management
+  - Enhanced routing with tab-based navigation
 
 ## Support & Documentation
 
