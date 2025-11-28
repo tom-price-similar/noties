@@ -12,9 +12,10 @@
 - **Multi-platform**: Web, PWA (iOS/Android), and Electron desktop app (macOS)
 - **Real-time sync**: Notes synchronize across all devices via Firebase Firestore
 - **Offline-first**: Full functionality offline with IndexedDB local storage
-- **PIN authentication**: Simple 4-digit PIN for user access (stored in sessionStorage)
+- **Single contenteditable editor**: Native text selection and editing with slash commands
 - **Auto-save**: Debounced saving (500ms) prevents data loss
 - **Dark theme**: Minimalist dark UI optimized for readability
+- **Smart checklists**: Checked items automatically move to the bottom of their checklist
 
 ## Technology Stack
 
@@ -47,14 +48,15 @@
 │   └── pwa-*.png              # PWA icons
 ├── src/
 │   ├── components/
-│   │   ├── PinScreen.vue      # PIN authentication
 │   │   ├── NotesList.vue      # Notes list (PWA only)
-│   │   ├── NoteEditor.vue     # Block-based WYSIWYG editor
-│   │   ├── SlashMenu.vue      # Slash command menu for block insertion
+│   │   ├── NoteEditor.vue     # Single contenteditable WYSIWYG editor
+│   │   ├── SlashMenu.vue      # Slash command menu for inserting elements
 │   │   ├── Sidebar.vue        # Desktop sidebar with note list
 │   │   ├── DesktopLayout.vue  # Desktop two-panel layout
 │   │   ├── TabBar.vue         # Bottom tab navigation (PWA only)
 │   │   └── DayPlanner.vue     # Day planner component
+│   ├── stores/
+│   │   └── plannerStore.js    # Day planner state management
 │   ├── App.vue                # Root component with platform detection
 │   ├── main.js                # Vue app entry point
 │   ├── firebase.js            # Firebase configuration
@@ -70,10 +72,11 @@
 
 ## Core Components
 
-### Authentication Flow
-- **PinScreen.vue**: 4-digit PIN entry with visual feedback
-- PIN stored in sessionStorage (session-only persistence)
-- Automatic routing based on auth state
+### Note Editor
+- **NoteEditor.vue**: Single contenteditable div for all note content
+- Native text selection across headings, paragraphs, and checklists
+- Slash commands (`/`) trigger a menu to insert headings and checklists
+- Checked items automatically sort to the bottom of their checklist group
 
 ### Data Management
 - **notesStore.js**: Vue composable for note CRUD operations
@@ -120,17 +123,11 @@ npm run preview            # Preview production build locally
 The app uses Firebase Firestore with the following structure:
 ```
 pins/
-  └── {pin}/
+  └── default/                    # All data stored under 'default' collection (no PIN)
       ├── notes/
       │   └── {noteId}
       │       ├── title
-      │       ├── blocks: [                    # New block-based format
-      │       │   { id, type: 'text', content },
-      │       │   { id, type: 'heading', level: 1|2|3, content },
-      │       │   { id, type: 'checklist', items: [
-      │       │       { id, text, checked, priority: 'high'|'medium'|'low'|'none' }
-      │       │   ]}
-      │       │ ]
+      │       ├── content         # HTML content from contenteditable
       │       ├── createdAt
       │       └── updatedAt
       └── dayplans/
@@ -143,8 +140,6 @@ pins/
               │ }
               └── updatedAt
 ```
-
-**Note**: Legacy notes with `content` string or `checklist` array are automatically migrated to the new block format on load.
 
 **Note**: Firebase API keys are exposed in client code (standard for Firebase web apps). Ensure proper Firestore security rules are configured.
 
@@ -168,16 +163,13 @@ pins/
 
 ## Security Considerations
 
-1. **PIN Storage**: Session-only (cleared on browser close)
-2. **Firestore Rules**: Must be configured for production
-3. **Electron**: Context isolation enabled, no Node integration
-4. **API Keys**: Client-side Firebase config (secure with Firestore rules)
+1. **Firestore Rules**: Must be configured for production
+2. **Electron**: Context isolation enabled, no Node integration
+3. **API Keys**: Client-side Firebase config (secure with Firestore rules)
 
 ## Known Limitations
 
-- PIN system is basic (4 digits, no encryption)
-- No user account management
-- Single PIN = single note collection
+- No user authentication (all data stored in single 'default' collection)
 - No collaborative editing support
 - Day planner data resets daily (no history)
 - No export functionality for notes or checklists
@@ -207,7 +199,6 @@ pins/
 ### Sync Issues
 - Verify internet connection
 - Check browser console for Firestore errors
-- Ensure PIN matches across devices
 
 ### Electron Build Issues
 - Run `npm ci` for clean dependency install
@@ -216,28 +207,31 @@ pins/
 
 ## Recent Updates
 
-### 2025-11-28 - Block-Based Editor & Desktop Sidebar
-- **Block-Based Note Editor**:
-  - Notes now support mixed content with text, headings, and checklists
-  - WYSIWYG editing with inline markdown rendering
-  - Slash commands (`/`) to insert blocks: Red/Yellow/Green checklists, H1/H2/H3 headings
-  - Priority colors: Red = High/Urgent, Yellow = Medium, Green = Low
+### 2025-11-28 - Single Contenteditable Editor & Simplified Architecture
+- **Editor Rewrite to Single Contenteditable**:
+  - Replaced complex block-based system with single contenteditable div
+  - Native text selection works across all content (headings, paragraphs, checklists)
+  - Simpler, more intuitive editing experience like a standard text editor
+  - Slash commands (`/`) insert headings (H1/H2/H3) and colored checklists
+
+- **Smart Checklist Sorting**:
+  - Checked items automatically move to the bottom of their checklist group
+  - Unchecked items move back above checked items when toggled
+  - Each checklist group is treated independently
+
+- **Removed PIN Authentication**:
+  - All data now stored under 'default' collection (no PIN required)
+  - Simplified routing - no PinScreen component
+  - plannerStore updated to use DEFAULT_COLLECTION
+
+- **Bug Fixes**:
+  - Fixed planner data not persisting (was using old PIN-based collection path)
+  - Fixed note switching bugs (initializedBlocks Set not clearing)
 
 - **Desktop Electron Improvements**:
   - 150px sidebar with note titles (auto-selects latest note)
   - Fixed window draggable region and traffic light overlap
   - Two-panel layout for desktop (sidebar + editor)
-
-- **Removed Features**:
-  - Checklist toggle button (replaced by slash commands)
-  - Markdown preview section (now inline WYSIWYG)
-  - PriorityPicker component (priority set on checklist creation)
-
-- **Technical Changes**:
-  - New block-based data structure with automatic migration from legacy format
-  - Added: SlashMenu, Sidebar, DesktopLayout components
-  - Added: electron/preload.js for Electron API exposure
-  - Removed: ChecklistItem, PriorityPicker components
 
 ### 2024-11-28 - Major Feature Release
 - **Initial deployment to GitHub Pages**

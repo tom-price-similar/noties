@@ -6,7 +6,7 @@
       @create="handleCreate"
     />
     <div class="main-content">
-      <NoteEditor v-if="selectedNoteId" :key="selectedNoteId" />
+      <NoteEditor v-if="selectedNoteId" :key="selectedNoteId" :noteIdProp="selectedNoteId" />
       <div v-else class="empty-state">
         <div class="empty-icon">📝</div>
         <p>Select a note or create a new one</p>

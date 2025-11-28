@@ -2,10 +2,14 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// Check if building for Electron (set via environment variable)
+const isElectron = process.env.BUILD_TARGET === 'electron'
+
 export default defineConfig({
   plugins: [
     vue(),
-    VitePWA({
+    // Only include PWA plugin for web builds
+    ...(!isElectron ? [VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
       manifest: {
@@ -45,9 +49,10 @@ export default defineConfig({
           }
         ]
       }
-    })
+    })] : [])
   ],
-  base: '/noties/',
+  // Use relative paths for Electron, /noties/ for GitHub Pages
+  base: isElectron ? './' : '/noties/',
   build: {
     outDir: 'dist'
   }

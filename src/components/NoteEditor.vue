@@ -68,13 +68,21 @@ import { useRouter, useRoute } from 'vue-router'
 import { useNotes, getNoteById, updateNote, deleteNote, generateBlockId, generateItemId } from '../notesStore'
 import SlashMenu from './SlashMenu.vue'
 
+const props = defineProps({
+  noteIdProp: {
+    type: String,
+    default: null
+  }
+})
+
 const router = useRouter()
 const route = useRoute()
 const { syncStatus } = useNotes()
 
 const isDesktop = inject('isDesktop', ref(false))
 
-const noteId = computed(() => route.params.id)
+// Use prop if provided (desktop), otherwise use route param (PWA)
+const noteId = computed(() => props.noteIdProp || route.params.id)
 const title = ref('')
 const isSaving = ref(false)
 const showDeleteModal = ref(false)
