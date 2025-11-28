@@ -1,0 +1,43 @@
+{
+  "name": "noties",
+  "version": "1.0.0",
+  "description": "A simple notes app with offline sync",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:build": "vite build && electron-builder"
+  },
+  "dependencies": {
+    "firebase": "^10.7.1",
+    "idb": "^8.0.0",
+    "vue": "^3.4.3",
+    "vue-router": "^4.2.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^4.5.2",
+    "concurrently": "^8.2.2",
+    "electron": "^28.1.0",
+    "electron-builder": "^24.9.1",
+    "vite": "^5.0.10",
+    "vite-plugin-pwa": "^0.17.4",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.noties.app",
+    "productName": "Noties",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": "dmg"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ]
+  }
+}
