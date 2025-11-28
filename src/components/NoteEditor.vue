@@ -194,6 +194,9 @@ const statusText = computed(() => {
 })
 
 onMounted(() => {
+  // Clear initialized blocks set for fresh start (important when switching notes)
+  initializedBlocks.clear()
+
   if (noteId.value) {
     const note = getNoteById(noteId.value)
     if (note) {

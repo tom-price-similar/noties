@@ -29,6 +29,9 @@ async function getIDB() {
   return idbInstance
 }
 
+// Default collection name (matches notesStore)
+const DEFAULT_COLLECTION = 'default'
+
 export function usePlanner() {
   const dayPlan = ref(null)
   const loading = ref(false)
@@ -36,7 +39,8 @@ export function usePlanner() {
   const currentDateId = ref(null)
   let unsubscribe = null
 
-  const pin = computed(() => sessionStorage.getItem('userPin'))
+  // Use default collection (no PIN required)
+  const pin = computed(() => DEFAULT_COLLECTION)
 
   const syncStatusText = computed(() => {
     switch (syncStatus.value) {
