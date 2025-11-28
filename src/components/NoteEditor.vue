@@ -245,17 +245,83 @@ function attachChecklistListeners() {
 
 function toggleCheckbox(checkbox) {
   const isChecked = checkbox.classList.toggle('checked')
-  const textSpan = checkbox.parentElement.querySelector('.checklist-text')
+  const item = checkbox.closest('.checklist-item')
+  const textSpan = item.querySelector('.checklist-text')
 
   if (isChecked) {
     checkbox.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>'
     textSpan?.classList.add('strike-through')
+
+    // Move checked item to bottom of its checklist group
+    moveCheckedToBottom(item)
   } else {
     checkbox.innerHTML = ''
     textSpan?.classList.remove('strike-through')
+
+    // Move unchecked item back up (above other checked items)
+    moveUncheckedAboveChecked(item)
   }
 
   debouncedSave()
+}
+
+// Find all consecutive checklist items (the checklist group)
+function getChecklistGroup(item) {
+  const items = [item]
+
+  // Get previous siblings that are checklist items
+  let prev = item.previousElementSibling
+  while (prev?.classList.contains('checklist-item')) {
+    items.unshift(prev)
+    prev = prev.previousElementSibling
+  }
+
+  // Get next siblings that are checklist items
+  let next = item.nextElementSibling
+  while (next?.classList.contains('checklist-item')) {
+    items.push(next)
+    next = next.nextElementSibling
+  }
+
+  return items
+}
+
+function moveCheckedToBottom(item) {
+  const group = getChecklistGroup(item)
+
+  // Find the last unchecked item in the group
+  let lastUncheckedIndex = -1
+  for (let i = group.length - 1; i >= 0; i--) {
+    if (!group[i].querySelector('.checkbox').classList.contains('checked')) {
+      lastUncheckedIndex = i
+      break
+    }
+  }
+
+  // If there are unchecked items after this one, move it after the last unchecked
+  const currentIndex = group.indexOf(item)
+  if (lastUncheckedIndex > currentIndex) {
+    group[lastUncheckedIndex].insertAdjacentElement('afterend', item)
+  }
+}
+
+function moveUncheckedAboveChecked(item) {
+  const group = getChecklistGroup(item)
+
+  // Find the first checked item in the group
+  let firstCheckedIndex = -1
+  for (let i = 0; i < group.length; i++) {
+    if (group[i].querySelector('.checkbox').classList.contains('checked')) {
+      firstCheckedIndex = i
+      break
+    }
+  }
+
+  // If there are checked items before this one, move it before the first checked
+  const currentIndex = group.indexOf(item)
+  if (firstCheckedIndex !== -1 && firstCheckedIndex < currentIndex) {
+    group[firstCheckedIndex].insertAdjacentElement('beforebegin', item)
+  }
 }
 
 function handleChecklistTextKeydown(e, span) {
