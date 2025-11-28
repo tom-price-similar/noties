@@ -26,6 +26,15 @@
           :data-block-index="index"
           @click="handleBlockClick($event, index)"
         >
+          <!-- Selection handle for easier multi-select -->
+          <div
+            class="block-handle"
+            @click.stop="handleHandleClick($event, index)"
+            @mousedown.prevent
+          >
+            <span class="handle-grip">⋮⋮</span>
+          </div>
+
           <!-- Text Block - use ref callback to set initial content -->
           <div
             v-if="block.type === 'text'"
@@ -239,20 +248,56 @@ function handleGlobalKeydown(event) {
 }
 
 function handleBlockClick(event, index) {
-  if (event.shiftKey && selectedBlocks.value.length > 0) {
-    // Shift+click to extend selection
-    const lastSelected = selectedBlocks.value[selectedBlocks.value.length - 1]
+  // Check if click is on the block wrapper itself (not inside contenteditable)
+  const target = event.target
+  const isOnBlockWrapper = target.classList.contains('block') ||
+                           target.classList.contains('checklist-block')
+
+  if (event.shiftKey) {
+    // Shift+click to extend selection from last selected (or current block)
+    event.preventDefault()
+    const lastSelected = selectedBlocks.value.length > 0
+      ? selectedBlocks.value[selectedBlocks.value.length - 1]
+      : index
     const start = Math.min(lastSelected, index)
     const end = Math.max(lastSelected, index)
     selectedBlocks.value = Array.from({ length: end - start + 1 }, (_, i) => start + i)
   } else if (event.metaKey || event.ctrlKey) {
     // Cmd/Ctrl+click to toggle selection
+    event.preventDefault()
     const idx = selectedBlocks.value.indexOf(index)
     if (idx > -1) {
       selectedBlocks.value.splice(idx, 1)
     } else {
       selectedBlocks.value.push(index)
     }
+  } else if (isOnBlockWrapper) {
+    // Regular click on block wrapper starts new single selection
+    selectedBlocks.value = [index]
+  }
+}
+
+// Handle click on the selection handle (grip icon)
+function handleHandleClick(event, index) {
+  if (event.shiftKey) {
+    // Shift+click to extend selection
+    const lastSelected = selectedBlocks.value.length > 0
+      ? selectedBlocks.value[selectedBlocks.value.length - 1]
+      : index
+    const start = Math.min(lastSelected, index)
+    const end = Math.max(lastSelected, index)
+    selectedBlocks.value = Array.from({ length: end - start + 1 }, (_, i) => start + i)
+  } else if (event.metaKey || event.ctrlKey) {
+    // Cmd/Ctrl+click to toggle in selection
+    const idx = selectedBlocks.value.indexOf(index)
+    if (idx > -1) {
+      selectedBlocks.value.splice(idx, 1)
+    } else {
+      selectedBlocks.value.push(index)
+    }
+  } else {
+    // Regular click starts new selection with this block
+    selectedBlocks.value = [index]
   }
 }
 
@@ -799,6 +844,7 @@ async function handleDelete() {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  padding-left: 28px; /* Space for block handles */
 }
 
 .block {
@@ -810,6 +856,40 @@ async function handleDelete() {
 .block-selected {
   background: rgba(255, 200, 87, 0.2);
   outline: 2px solid var(--accent);
+}
+
+/* Block handle for selection */
+.block-handle {
+  position: absolute;
+  left: -24px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 0.15s;
+  border-radius: 4px;
+  user-select: none;
+}
+
+.block:hover .block-handle,
+.block-selected .block-handle {
+  opacity: 0.5;
+}
+
+.block-handle:hover {
+  opacity: 1 !important;
+  background: var(--bg-tertiary);
+}
+
+.handle-grip {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: -2px;
 }
 
 /* Text Block */
