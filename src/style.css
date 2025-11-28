@@ -14,7 +14,11 @@
   --text-muted: #666666;
   --accent: #ffc857;
   --border: #333333;
+  --border-color: #333333;
   --danger: #ff6b6b;
+  --priority-high: #ff6b6b;
+  --priority-medium: #ffc857;
+  --priority-low: #4ade80;
   --safe-area-top: env(safe-area-inset-top, 0px);
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
 }
@@ -58,6 +62,10 @@ button {
   flex-direction: column;
   height: 100%;
   overflow: hidden;
+}
+
+.container.with-tab-bar {
+  padding-bottom: calc(56px + env(safe-area-inset-bottom));
 }
 
 .header {

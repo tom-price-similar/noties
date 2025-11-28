@@ -4,12 +4,14 @@ import App from './App.vue'
 import PinScreen from './components/PinScreen.vue'
 import NotesList from './components/NotesList.vue'
 import NoteEditor from './components/NoteEditor.vue'
+import DayPlanner from './components/DayPlanner.vue'
 import './style.css'
 
 const routes = [
   { path: '/', component: PinScreen },
   { path: '/notes', component: NotesList },
-  { path: '/note/:id?', component: NoteEditor }
+  { path: '/note/:id?', component: NoteEditor },
+  { path: '/planner', component: DayPlanner }
 ]
 
 const router = createRouter({

@@ -40,3 +40,5 @@ export function getDb() {
 export function getApp() {
   return app
 }
+
+export { db }

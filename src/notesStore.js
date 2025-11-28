@@ -81,16 +81,17 @@ export function unsubscribeFromNotes() {
   }
 }
 
-export async function createNote(title, content = '') {
+export async function createNote(title, content = '', checklist = []) {
   const notesCol = getNotesCollection()
   if (!notesCol) return null
 
   syncStatus.value = 'syncing'
-  
+
   try {
     const docRef = await addDoc(notesCol, {
       title,
       content,
+      checklist,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     })

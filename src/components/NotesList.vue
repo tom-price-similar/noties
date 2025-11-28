@@ -1,5 +1,5 @@
 <template>
-  <div class="container">
+  <div class="container with-tab-bar">
     <header class="header">
       <h1>Noties</h1>
       <button class="header-btn primary" @click="createNewNote">+ New</button>
@@ -18,14 +18,20 @@
       </div>
       
       <div v-else class="notes-list">
-        <div 
-          v-for="note in notes" 
-          :key="note.id" 
+        <div
+          v-for="note in notes"
+          :key="note.id"
           class="note-card"
           @click="openNote(note.id)"
         >
-          <h3 class="note-title">{{ note.title || 'Untitled' }}</h3>
-          <p class="note-preview">{{ getPreview(note.content) }}</p>
+          <div class="note-header">
+            <h3 class="note-title">{{ note.title || 'Untitled' }}</h3>
+            <svg v-if="note.checklist && note.checklist.length > 0" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="checklist-icon">
+              <path d="M9 11l3 3L22 4"></path>
+              <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"></path>
+            </svg>
+          </div>
+          <p class="note-preview">{{ getPreview(note) }}</p>
           <span class="note-date">{{ formatDate(note.updatedAt) }}</span>
         </div>
       </div>
@@ -60,9 +66,14 @@ const syncStatusText = computed(() => {
   }
 })
 
-function getPreview(content) {
-  if (!content) return 'No content'
-  return content.slice(0, 100) + (content.length > 100 ? '...' : '')
+function getPreview(note) {
+  if (note.checklist && note.checklist.length > 0) {
+    const uncheckedCount = note.checklist.filter(item => !item.checked).length
+    const totalCount = note.checklist.length
+    return `${uncheckedCount} of ${totalCount} items${uncheckedCount === 0 ? ' - All done!' : ''}`
+  }
+  if (!note.content) return 'No content'
+  return note.content.slice(0, 100) + (note.content.length > 100 ? '...' : '')
 }
 
 function formatDate(timestamp) {
@@ -164,13 +175,27 @@ function openNote(id) {
   transform: scale(0.98);
 }
 
+.note-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
 .note-title {
   font-size: 17px;
   font-weight: 600;
-  margin-bottom: 4px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 1;
+}
+
+.checklist-icon {
+  color: var(--accent);
+  opacity: 0.8;
+  flex-shrink: 0;
 }
 
 .note-preview {
