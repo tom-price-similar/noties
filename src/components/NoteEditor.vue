@@ -129,22 +129,32 @@ onUnmounted(() => {
 // Convert stored data to HTML for the editor
 function deserializeContent(note) {
   // Handle new blocks format
-  if (note.blocks && Array.isArray(note.blocks)) {
-    return note.blocks.map(block => {
+  if (note.blocks && Array.isArray(note.blocks) && note.blocks.length > 0) {
+    const html = note.blocks.map(block => {
       if (block.type === 'text') {
         return `<p>${escapeHtml(block.content) || '<br>'}</p>`
       } else if (block.type === 'heading') {
-        const tag = `h${block.level}`
+        const tag = `h${block.level || 1}`
         return `<${tag}>${escapeHtml(block.content)}</${tag}>`
       } else if (block.type === 'checklist') {
-        return block.items.map(item => createChecklistItemHtml(item)).join('')
+        // Ensure items is an array
+        const items = Array.isArray(block.items) ? block.items : []
+        if (items.length === 0) {
+          return '' // Skip empty checklists
+        }
+        return items.map(item => createChecklistItemHtml(item)).join('')
       }
       return ''
     }).join('')
+
+    // Return html if we got anything, otherwise fall through to default
+    if (html.trim()) {
+      return html
+    }
   }
 
   // Handle legacy content string
-  if (note.content) {
+  if (note.content && typeof note.content === 'string') {
     return note.content.split('\n').map(line => `<p>${escapeHtml(line) || '<br>'}</p>`).join('')
   }
 
@@ -492,19 +502,25 @@ function handleSlashSelect(item) {
 
   const { node, slashIndex, endOffset } = slashRange.value
 
-  // Remove the slash command text
+  // Get text before and after the slash command
   const before = node.textContent.substring(0, slashIndex)
   const after = node.textContent.substring(endOffset)
-  node.textContent = before + after
 
-  // Create and insert the new element
+  // Create the new element
   let newElement
 
   if (item.type === 'heading') {
     newElement = document.createElement(`h${item.level}`)
-    newElement.innerHTML = '<br>'
+    // If converting existing text, use that text in the heading
+    if (before.trim() || after.trim()) {
+      newElement.textContent = before.trim() + after.trim()
+    } else {
+      newElement.innerHTML = '<br>'
+    }
   } else if (item.type === 'checklist') {
-    const checklistItem = { id: generateItemId(), text: '', checked: false, priority: item.priority, indent: 0 }
+    // If there's text before the slash, use it as the checklist item text
+    const itemText = before.trim() + after.trim()
+    const checklistItem = { id: generateItemId(), text: itemText, checked: false, priority: item.priority, indent: 0 }
     const tempDiv = document.createElement('div')
     tempDiv.innerHTML = createChecklistItemHtml(checklistItem)
     newElement = tempDiv.firstElementChild
@@ -518,13 +534,8 @@ function handleSlashSelect(item) {
     }
 
     if (parent && parent !== editorRef.value) {
-      // If there's text before, keep it in current element
-      if (before.trim()) {
-        parent.insertAdjacentElement('afterend', newElement)
-      } else {
-        // Replace the current element
-        parent.replaceWith(newElement)
-      }
+      // Replace the current element with the new one
+      parent.replaceWith(newElement)
     } else {
       // Just append to editor
       editorRef.value.appendChild(newElement)
@@ -536,13 +547,20 @@ function handleSlashSelect(item) {
         const textSpan = newElement.querySelector('.checklist-text')
         if (textSpan) {
           textSpan.focus()
+          // Move cursor to end of text
+          const range = document.createRange()
+          range.selectNodeContents(textSpan)
+          range.collapse(false)
+          const sel = window.getSelection()
+          sel.removeAllRanges()
+          sel.addRange(range)
           attachChecklistListeners()
         }
       } else {
         newElement.focus()
         const range = document.createRange()
-        range.setStart(newElement, 0)
-        range.collapse(true)
+        range.selectNodeContents(newElement)
+        range.collapse(false)
         const sel = window.getSelection()
         sel.removeAllRanges()
         sel.addRange(range)

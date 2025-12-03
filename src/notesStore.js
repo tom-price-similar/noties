@@ -75,8 +75,29 @@ export function generateItemId() {
 export function useNotes() {
   const sortedNotes = computed(() => {
     return [...notes.value].sort((a, b) => {
-      const aTime = a.updatedAt?.toMillis?.() || a.updatedAt || 0
-      const bTime = b.updatedAt?.toMillis?.() || b.updatedAt || 0
+      // Handle Firestore Timestamp objects, regular timestamps, and pending serverTimestamp
+      const getTime = (note) => {
+        if (!note.updatedAt) return 0
+        // Firestore Timestamp object
+        if (typeof note.updatedAt.toMillis === 'function') {
+          return note.updatedAt.toMillis()
+        }
+        // Firestore pending write (serverTimestamp not yet confirmed)
+        if (note.updatedAt.seconds !== undefined) {
+          return note.updatedAt.seconds * 1000
+        }
+        // Regular number/Date
+        return note.updatedAt
+      }
+
+      const aTime = getTime(a)
+      const bTime = getTime(b)
+
+      // If times are equal (or both 0), maintain stable order by id
+      if (aTime === bTime) {
+        return (a.id || '').localeCompare(b.id || '')
+      }
+
       return bTime - aTime
     })
   })
