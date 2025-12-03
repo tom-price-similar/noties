@@ -128,7 +128,12 @@ onUnmounted(() => {
 
 // Convert stored data to HTML for the editor
 function deserializeContent(note) {
-  // Handle new blocks format
+  // Prefer htmlContent (new format) - this is the raw HTML from contenteditable
+  if (note.htmlContent && typeof note.htmlContent === 'string') {
+    return note.htmlContent
+  }
+
+  // Handle legacy blocks format
   if (note.blocks && Array.isArray(note.blocks) && note.blocks.length > 0) {
     const html = note.blocks.map(block => {
       if (block.type === 'text') {
@@ -587,11 +592,12 @@ function debouncedSave() {
 async function saveNote() {
   if (!noteId.value) return
 
-  const blocks = serializeContent()
+  // Save raw HTML content directly for reliable cross-device sync
+  const htmlContent = editorRef.value?.innerHTML || ''
 
   await updateNote(noteId.value, {
     title: title.value,
-    blocks
+    htmlContent
   })
 
   isSaving.value = false
