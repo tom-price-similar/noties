@@ -595,9 +595,13 @@ async function saveNote() {
   // Save raw HTML content directly for reliable cross-device sync
   const htmlContent = editorRef.value?.innerHTML || ''
 
-  await updateNote(noteId.value, {
+  // Also generate blocks for backward compatibility with older versions
+  const blocks = serializeContent()
+
+  const result = await updateNote(noteId.value, {
     title: title.value,
-    htmlContent
+    htmlContent,
+    blocks
   })
 
   isSaving.value = false
